@@ -2,8 +2,10 @@ from .. import run_support as support
 from .. import bash
 from ..util.system import only_these_symlinks
 from pypeflow.pwatcher_bridge import PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase
-from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
+from pypeflow.data import makePypeLocalFile, fn
 from pypeflow.task import PypeTask
+from pypeflow.simple_pwatcher_bridge import (PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase,
+        makePypeLocalFile, fn, PypeTask)
 import argparse
 import collections
 import glob
@@ -35,16 +37,16 @@ def system(call, check=False):
     return rc
 
 def task_make_fofn_abs_raw(self):
-    #script_fn = 'noop.sh'
-    #open(script_fn, 'w').write('echo NOOP raw')
-    #self.generated_script_fn = script_fn
-    support.make_fofn_abs(self.i_fofn.path, self.o_fofn.path)
+    script_fn = 'noop.sh'
+    open(script_fn, 'w').write('echo NOOP raw')
+    self.generated_script_fn = script_fn
+    support.make_fofn_abs(fn(self.i_fofn), fn(self.o_fofn))
 
 def task_make_fofn_abs_preads(self):
-    #script_fn = 'noop.sh'
-    #open(script_fn, 'w').write('echo NOOP preads')
-    #self.generated_script_fn = script_fn
-    support.make_fofn_abs(self.i_fofn.path, self.o_fofn.path)
+    script_fn = 'noop.sh'
+    open(script_fn, 'w').write('echo NOOP preads')
+    self.generated_script_fn = script_fn
+    support.make_fofn_abs(fn(self.i_fofn), fn(self.o_fofn))
 
 def task_build_rdb(self):
     input_fofn_fn = fn(self.input_fofn)
@@ -220,9 +222,12 @@ def mkdir(d):
         os.makedirs(d)
 
 def task_daligner_gather(self):
+    """Create symlinks in the m_* directories.
+    Kinda messy, and it must run in the base-dir for now.
+    """
     da_done = fn(self.da_done)
     main_dir = os.path.dirname(da_done)
-    out_dict = self.inputDataObjs
+    out_dict = self.inputs
     nblock = self.parameters['nblock']
     fc_run_logger.debug('nblock=%d, out_dir:\n%s'%(nblock, out_dict))
 
@@ -241,6 +246,11 @@ def task_daligner_gather(self):
             links[mdir].append(las_path)
     only_these_symlinks(links)
     system("touch %s" %da_done)
+
+    # Because we need a script always, for now.
+    script_fn = 'noop.sh'
+    open(script_fn, 'w').write('echo NOOP raw')
+    self.generated_script_fn = script_fn
 
 def create_daligner_tasks(run_jobs_fn, wd, db_prefix, rdb_build_done, nblock, config, pread_aln=False):
     tasks = []
@@ -374,7 +384,7 @@ def run(wf, config,
     concurrent_jobs = config["pa_concurrent_jobs"]
     setNumThreadAllowed(concurrent_jobs, concurrent_jobs)
 
-    rawread_fofn_plf = makePypeLocalFile(os.path.join(rawread_dir, os.path.basename(config["input_fofn"])))
+    rawread_fofn_plf = makePypeLocalFile(os.path.join(rawread_dir, 'raw-fofn-abs', os.path.basename(config["input_fofn"])))
     make_fofn_abs_task = PypeTask(inputs = {"i_fofn": input_fofn_plf},
                                   outputs = {"o_fofn": rawread_fofn_plf},
                                   parameters = {},
@@ -414,7 +424,7 @@ def run(wf, config,
                 nblock=raw_reads_nblock, config=config)
 
         wf.addTasks(daligner_tasks)
-        r_da_done = makePypeLocalFile( os.path.join( rawread_dir, "da_done") )
+        r_da_done = makePypeLocalFile( os.path.join( rawread_dir, 'raw_gather', 'da_done') )
 
         parameters =  {
                 "nblock": raw_reads_nblock,
@@ -464,7 +474,7 @@ def run(wf, config,
 
     # build pread database
     if config["input_type"] == "preads":
-        pread_fofn_plf = makePypeLocalFile(os.path.join(pread_dir, os.path.basename(config["input_fofn"])))
+        pread_fofn_plf = makePypeLocalFile(os.path.join(pread_dir, 'preads-fofn-abs', os.path.basename(config["input_fofn"])))
         make_fofn_abs_task = PypeTask(inputs = {"i_fofn": rawread_fofn_plf},
                                      outputs = {"o_fofn": pread_fofn_plf},
                                      parameters = {},

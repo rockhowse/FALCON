@@ -1,4 +1,5 @@
 from . import bash
+from pypeflow.util import cd
 import ConfigParser
 import json
 import logging
@@ -402,10 +403,11 @@ def setup_logger(logging_config_fn):
     return logger
 
 def make_fofn_abs(i_fofn_fn, o_fofn_fn):
-    """Copy i_fofn to o_fofn, but with relative filenames expanded for CWD.
+    """Copy i_fofn to o_fofn, but with relative filenames expanded for the dir of i_fofn.
     """
-    assert os.path.abspath(o_fofn_fn) != os.path.abspath(i_fofn_fn)
+    assert os.path.abspath(o_fofn_fn) != os.path.abspath(i_fofn_fn), '{!r} != {!r}'.format(o_fofn_fn, i_fofn_fn)
     with open(i_fofn_fn) as ifs, open(o_fofn_fn, 'w') as ofs:
+      with cd(os.path.dirname(i_fofn_fn)):
         for line in ifs:
             ifn = line.strip()
             if not ifn: continue
